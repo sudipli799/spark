@@ -72,6 +72,16 @@ const customerSchema = new mongoose.Schema({
   
   const Follow = mongoose.model('VZ_follow', followSchema, 'VZ_follow');
 
+  const PostLikeSchema = new mongoose.Schema({
+    my_id: String,
+    post_id: String,
+    like_date: { type: Date, default: Date.now },
+    status: { type: Number, default: 1 },
+    isDeleted: { type: Number, default: 0 }
+  }, { timestamps: true });
+  
+  const PostLike = mongoose.model('VZ_like', PostLikeSchema, 'VZ_like');
+
 
   const commentSchema = new mongoose.Schema({
   post_id: { type: String, required: true },             // Post ID
@@ -92,4 +102,4 @@ const Comment = mongoose.model('VZ_comment', commentSchema, 'VZ_comment');
   
 
 
-module.exports = {Customer, Post, Follow, Comment, Song};
+module.exports = {Customer, Post, Follow, Comment, Song, PostLike};

@@ -1,4 +1,4 @@
-const { Customer, Post, Song, Follow, Comment } = require('../../models/RestApi/customerModel');
+const { Customer, Post, Song, Follow, Comment, PostLike } = require('../../models/RestApi/customerModel');
 const argon2 = require('argon2');
 const s3 = require('../../utils/s3');
 const multer = require('multer');
@@ -522,8 +522,6 @@ const getCommentsWithReplies = async (req, res) => {
     }
 
 
-    
-
     return res.status(200).json({
       status: true,
       comments: commentTree,
@@ -534,6 +532,28 @@ const getCommentsWithReplies = async (req, res) => {
   }
 };
 
+const postlike = async (req, res) => {
+  try {
+    const { my_id, post_id } = req.body;
+
+    if (!my_id || !post_id) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const postlike = await PostLike.create({
+      my_id,
+      post_id
+    });
+
+    res.status(201).json({
+      message: 'Followed successfully',
+      
+    });
+
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
 
 const uploadSong = async (req, res) => {
   try {
@@ -756,5 +776,6 @@ module.exports = {
   followBack,
   addCommentOrReply,
   getCommentsWithReplies,
-  getHome
+  getHome,
+  postlike
 };
