@@ -774,6 +774,44 @@ const getHome = async (req, res) => {
   }
 };
 
+const getFollowing = async (req, res) => {
+  try {
+    const { my_id } = req.params;
+
+    if (!my_id) {
+      return res.status(400).json({ status: false, message: "my_id is required" });
+    }
+
+    // find all following records
+    const following = await Follow.find({ my_id }).lean();
+
+    // get user details of follow_id
+    const followingWithUser = await Promise.all(
+      following.map(async (f) => {
+        const user = await Customer.findById(f.follow_id)
+          .select("_id name profileImage")
+          .lean();
+
+        return {
+          user_id: f.my_id,        // jiska following list hai
+          follow_id: f.follow_id,  // jo follow kiya gaya hai
+          name: user?.name || "",
+          profileImage: user?.profileImage || "",
+        };
+      })
+    );
+
+    res.status(200).json({
+      status: true,
+      following: followingWithUser,
+    });
+  } catch (error) {
+    console.error("getFollowing error:", error);
+    res.status(500).json({ status: false, message: error.message });
+  }
+};
+
+
 
 
 
@@ -794,5 +832,6 @@ module.exports = {
   addCommentOrReply,
   getCommentsWithReplies,
   getHome,
-  postlike
+  postlike,
+  getFollowing
 };
