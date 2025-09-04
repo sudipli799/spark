@@ -633,7 +633,7 @@ const getHome = async (req, res) => {
       const [likeCount, commentCount, isLiked] = await Promise.all([
         PostLike.countDocuments({ post_id: post._id }),
         Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
-        PostLike.exists({ post_id: post._id, customer_id: myId }), // 👈 check if myId liked
+        PostLike.exists({ post_id: post._id, my_id: myId }), // 👈 check if myId liked
       ]);
 
       return {
