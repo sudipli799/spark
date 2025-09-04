@@ -1,6 +1,6 @@
 const express = require('express');
 // const { createUser, getUsers, loginUser } = require('../controllers/userController');
-const { upload, checknumber, createCustomer, loginCustomer, getProfile, getHome, postlike, uploadFiles, uploadSong, uploadStory, uploadReel, getSongs, follow, followBack, addCommentOrReply, getCommentsWithReplies} = require('../../controllers/RestApi/customerController');
+const { upload, checknumber, createCustomer, loginCustomer, getProfile, getHome, getFollowing, getFollower, postlike, uploadFiles, uploadSong, uploadStory, uploadReel, getSongs, follow, followBack, addCommentOrReply, getCommentsWithReplies} = require('../../controllers/RestApi/customerController');
 // const { createCustomer, loginCustomer} = require('../../controllers/RestApi/customerController');
 
 
@@ -17,7 +17,8 @@ router.post('/comment', addCommentOrReply);
 router.get('/comment/:post_id', getCommentsWithReplies);
 router.get('/song', getSongs);
 router.post('/like', postlike);
-router.get('/following/:my_id', followBack);
+router.get('/following/:my_id', getFollowing);
+router.get('/follower/:follow_id', getFollower);
 
 router.post('/post', upload.fields([
   { name: 'image', maxCount: 10 }

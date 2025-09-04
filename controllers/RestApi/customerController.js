@@ -774,46 +774,75 @@ const getHome = async (req, res) => {
   }
 };
 
-const getFollowing = async (req, res) => {
-  try {
-    const { my_id } = req.params;
+  const getFollowing = async (req, res) => {
+    try {
+      const { my_id } = req.params;
 
-    if (!my_id) {
-      return res.status(400).json({ status: false, message: "my_id is required" });
-    }
+      if (!my_id) {
+        return res.status(400).json({ status: false, message: "my_id is required" });
+      }
+      const followingRecords = await Follow.find({ my_id }).lean();
 
-    // find all following records
-    const following = await Follow.find({ my_id }).lean();
+      const followIds = followingRecords.map(f => f.follow_id);
 
-    // get user details of follow_id
-    const followingWithUser = await Promise.all(
-      following.map(async (f) => {
-        const user = await Customer.findById(f.follow_id)
-          .select("_id name profileImage")
-          .lean();
+      const customers = await Customer.find({ _id: { $in: followIds } })
+        .select('name profileImage')
+        .lean();
 
+      const followingWithUser = followingRecords.map(f => {
+        const customer = customers.find(c => String(c._id) === String(f.follow_id));
         return {
-          user_id: f.my_id,        // jiska following list hai
-          follow_id: f.follow_id,  // jo follow kiya gaya hai
-          name: user?.name || "",
-          profileImage: user?.profileImage || "",
+          user_id: f.my_id,
+          follow_id: f.follow_id,
+          name: customer?.name || '',
+          profileImage: customer?.profileImage || 'https://cdn-icons-png.flaticon.com/512/1160/1160865.png'
         };
-      })
-    );
+      });
 
-    res.status(200).json({
-      status: true,
-      following: followingWithUser,
-    });
-  } catch (error) {
-    console.error("getFollowing error:", error);
-    res.status(500).json({ status: false, message: error.message });
-  }
-};
+      res.status(200).json({
+        status: true,
+        following: followingWithUser,
+      });
+    } catch (error) {
+      console.error("getFollowing error:", error);
+      res.status(500).json({ status: false, message: error.message });
+    }
+  };
 
+  const getFollower = async (req, res) => {
+    try {
+      const { follow_id } = req.params;
 
+      if (!follow_id) {
+        return res.status(400).json({ status: false, message: "my_id is required" });
+      }
+      const followingRecords = await Follow.find({ follow_id }).lean();
 
+      const followIds = followingRecords.map(f => f.my_id);
 
+      const customers = await Customer.find({ _id: { $in: followIds } })
+        .select('name profileImage')
+        .lean();
+
+      const followingWithUser = followingRecords.map(f => {
+        const customer = customers.find(c => String(c._id) === String(f.my_id));
+        return {
+          user_id: f.follow_id,
+          follow_id: f.my_id,
+          name: customer?.name || '',
+          profileImage: customer?.profileImage || 'https://cdn-icons-png.flaticon.com/512/1160/1160865.png'
+        };
+      });
+
+      res.status(200).json({
+        status: true,
+        following: followingWithUser,
+      });
+    } catch (error) {
+      console.error("getFollowing error:", error);
+      res.status(500).json({ status: false, message: error.message });
+    }
+  };
 
 
 module.exports = {
@@ -833,5 +862,6 @@ module.exports = {
   getCommentsWithReplies,
   getHome,
   postlike,
-  getFollowing
+  getFollowing,
+  getFollower
 };
