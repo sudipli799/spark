@@ -537,23 +537,45 @@ const postlike = async (req, res) => {
     const { my_id, post_id } = req.body;
 
     if (!my_id || !post_id) {
-      return res.status(400).json({ message: 'All fields are required' });
+      return res.status(400).json({ message: "All fields are required" });
     }
 
-    const postlike = await PostLike.create({
-      my_id,
-      post_id
-    });
+    // Check if already exists
+    const existingLike = await PostLike.findOne({ my_id, post_id });
 
-    res.status(201).json({
-      message: 'Followed successfully',
-      
-    });
+    if (existingLike) {
+      // Already liked → remove it (unlike)
+      await PostLike.deleteOne({ _id: existingLike._id });
 
+      // Count remaining likes
+      const likeCount = await PostLike.countDocuments({ post_id });
+
+      return res.status(200).json({
+        success: true,
+        message: "Unliked successfully",
+        isLiked: false,
+        likeCount,
+      });
+    } else {
+      // Not liked → create new like
+      await PostLike.create({ my_id, post_id });
+
+      // Count updated likes
+      const likeCount = await PostLike.countDocuments({ post_id });
+
+      return res.status(201).json({
+        success: true,
+        message: "Liked successfully",
+        isLiked: true,
+        likeCount,
+      });
+    }
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
 
 const uploadSong = async (req, res) => {
   try {
