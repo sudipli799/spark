@@ -624,7 +624,31 @@ const getHome = async (req, res) => {
   try {
     const myId = req.params.id;
 
-    // 1. STATUS LIST (only profile image shown)
+    // Helper function to add user + like + comment info
+    const enrichPost = async (post) => {
+      const user = await Customer.findById(post.customer_id)
+        .select("name profileImage")
+        .lean();
+
+      const [likeCount, commentCount, isLiked] = await Promise.all([
+        PostLike.countDocuments({ post_id: post._id }),
+        Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
+        PostLike.exists({ post_id: post._id, customer_id: myId }), // 👈 check if myId liked
+      ]);
+
+      return {
+        ...post,
+        image: Array.isArray(post.image) ? post.image[0] : post.image,
+        images: post.image,
+        user_name: user?.name || "",
+        user_profileImage: user?.profileImage || "",
+        likeCount,
+        commentCount,
+        isLiked: isLiked ? 1 : 0, // 👈 add like status
+      };
+    };
+
+    // 1. STATUS LIST
     const statusUsers = await Customer.find({})
       .select("_id name profileImage")
       .lean();
@@ -640,10 +664,10 @@ const getHome = async (req, res) => {
 
         if (!latestStatus) return null;
 
-        // ✅ Count likes & comments
-        const [likeCount, commentCount] = await Promise.all([
+        const [likeCount, commentCount, isLiked] = await Promise.all([
           PostLike.countDocuments({ post_id: latestStatus._id }),
           Comment.countDocuments({ post_id: latestStatus._id, is_deleted: 0 }),
+          PostLike.exists({ post_id: latestStatus._id, customer_id: myId }),
         ]);
 
         return {
@@ -653,6 +677,7 @@ const getHome = async (req, res) => {
           post_id: latestStatus._id,
           likeCount,
           commentCount,
+          isLiked: isLiked ? 1 : 0, // 👈 status like info
         };
       })
     );
@@ -660,34 +685,12 @@ const getHome = async (req, res) => {
     const filteredStatuses = statusList.filter(Boolean);
 
     // 2. 10 LATEST POSTS
-    const recentPosts = await Post.find({ post_type: { $in: ["post"] } })
+    const recentPosts = await Post.find({ post_type: "post" })
       .sort({ createdAt: -1 })
       .limit(10)
       .lean();
 
-    const postsWithUser = await Promise.all(
-      recentPosts.map(async (post) => {
-        const user = await Customer.findById(post.customer_id)
-          .select("name profileImage")
-          .lean();
-
-        // ✅ Count likes & comments
-        const [likeCount, commentCount] = await Promise.all([
-          PostLike.countDocuments({ post_id: post._id }),
-          Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
-        ]);
-
-        return {
-          ...post,
-          image: post.image[0],
-          images: post.image,
-          user_name: user?.name || "",
-          user_profileImage: user?.profileImage || "",
-          likeCount,
-          commentCount,
-        };
-      })
-    );
+    const postsWithUser = await Promise.all(recentPosts.map(enrichPost));
 
     // 3. SUGGESTED USERS
     const followingIds = await Follow.find({ my_id: myId }).distinct("follow_id");
@@ -704,26 +707,7 @@ const getHome = async (req, res) => {
       { $sample: { size: 10 } },
     ]);
 
-    const randomPostsWithUser = await Promise.all(
-      randomPosts.map(async (post) => {
-        const user = await Customer.findById(post.customer_id)
-          .select("name profileImage")
-          .lean();
-
-        const [likeCount, commentCount] = await Promise.all([
-          PostLike.countDocuments({ post_id: post._id }),
-          Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
-        ]);
-
-        return {
-          ...post,
-          user_name: user?.name || "",
-          user_profileImage: user?.profileImage || "",
-          likeCount,
-          commentCount,
-        };
-      })
-    );
+    const randomPostsWithUser = await Promise.all(randomPosts.map(enrichPost));
 
     // 5. REELS
     const reels = await Post.find({ type: "Video", post_type: "reel" })
@@ -731,26 +715,7 @@ const getHome = async (req, res) => {
       .limit(10)
       .lean();
 
-    const reelsWithUser = await Promise.all(
-      reels.map(async (reel) => {
-        const user = await Customer.findById(reel.customer_id)
-          .select("name profileImage")
-          .lean();
-
-        const [likeCount, commentCount] = await Promise.all([
-          PostLike.countDocuments({ post_id: reel._id }),
-          Comment.countDocuments({ post_id: reel._id, is_deleted: 0 }),
-        ]);
-
-        return {
-          ...reel,
-          user_name: user?.name || "",
-          user_profileImage: user?.profileImage || "",
-          likeCount,
-          commentCount,
-        };
-      })
-    );
+    const reelsWithUser = await Promise.all(reels.map(enrichPost));
 
     // 6. More posts
     const morePosts = await Post.find({ post_type: { $in: ["post", "reel"] } })
@@ -759,54 +724,16 @@ const getHome = async (req, res) => {
       .limit(10)
       .lean();
 
-    const morePostsWithUser = await Promise.all(
-      morePosts.map(async (post) => {
-        const user = await Customer.findById(post.customer_id)
-          .select("name profileImage")
-          .lean();
+    const morePostsWithUser = await Promise.all(morePosts.map(enrichPost));
 
-        const [likeCount, commentCount] = await Promise.all([
-          PostLike.countDocuments({ post_id: post._id }),
-          Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
-        ]);
-
-        return {
-          ...post,
-          user_name: user?.name || "",
-          user_profileImage: user?.profileImage || "",
-          likeCount,
-          commentCount,
-        };
-      })
-    );
-
-    // 8. Final batch of 10 posts
+    // 7. Final batch
     const finalPosts = await Post.find({ post_type: { $in: ["post", "reel"] } })
       .sort({ createdAt: -1 })
       .skip(1)
       .limit(10)
       .lean();
 
-    const finalPostsWithUser = await Promise.all(
-      finalPosts.map(async (post) => {
-        const user = await Customer.findById(post.customer_id)
-          .select("name profileImage")
-          .lean();
-
-        const [likeCount, commentCount] = await Promise.all([
-          PostLike.countDocuments({ post_id: post._id }),
-          Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
-        ]);
-
-        return {
-          ...post,
-          user_name: user?.name || "",
-          user_profileImage: user?.profileImage || "",
-          likeCount,
-          commentCount,
-        };
-      })
-    );
+    const finalPostsWithUser = await Promise.all(finalPosts.map(enrichPost));
 
     // ✅ Final Response
     res.status(200).json({
@@ -824,6 +751,7 @@ const getHome = async (req, res) => {
     res.status(500).json({ status: false, message: error.message });
   }
 };
+
 
 
 
