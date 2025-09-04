@@ -625,87 +625,135 @@ const getHome = async (req, res) => {
     const myId = req.params.id;
 
     // 1. STATUS LIST (only profile image shown)
-    const statusUsers = await Customer.find({}).select('_id name profileImage').lean();
+    const statusUsers = await Customer.find({})
+      .select("_id name profileImage")
+      .lean();
+
     const statusList = await Promise.all(
       statusUsers.map(async (user) => {
         const latestStatus = await Post.findOne({
           customer_id: user._id,
-          post_type: 'story'
+          post_type: "story",
         })
           .sort({ createdAt: -1 })
           .lean();
 
-        return latestStatus
-          ? { _id: user._id, name: user.name, profileImage: user.profileImage }
-          : null;
-      })
-    );
-    const filteredStatuses = statusList.filter(Boolean);
+        if (!latestStatus) return null;
 
-    // 2. 10 LATEST POSTS
-    const recentPosts = await Post.find({ post_type: { $in: ['post'] } })
-    .sort({ createdAt: -1 })
-    .limit(10)
-    .lean();
+        // ✅ Count likes & comments
+        const [likeCount, commentCount] = await Promise.all([
+          PostLike.countDocuments({ post_id: latestStatus._id }),
+          Comment.countDocuments({ post_id: latestStatus._id, is_deleted: 0 }),
+        ]);
 
-    const postsWithUser = await Promise.all(
-      recentPosts.map(async (post) => {
-        const user = await Customer.findById(post.customer_id).select('name profileImage').lean();
         return {
-          ...post,
-          image:post.image[0],
-          images:post.image,
-          user_name: user?.name || '',
-          user_profileImage: user?.profileImage || ''
+          _id: user._id,
+          name: user.name,
+          profileImage: user.profileImage,
+          post_id: latestStatus._id,
+          likeCount,
+          commentCount,
         };
       })
     );
 
-    // 3. SUGGESTED USERS (not followed yet)
-    const followingIds = await Follow.find({ my_id: myId }).distinct('follow_id');
+    const filteredStatuses = statusList.filter(Boolean);
+
+    // 2. 10 LATEST POSTS
+    const recentPosts = await Post.find({ post_type: { $in: ["post"] } })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    const postsWithUser = await Promise.all(
+      recentPosts.map(async (post) => {
+        const user = await Customer.findById(post.customer_id)
+          .select("name profileImage")
+          .lean();
+
+        // ✅ Count likes & comments
+        const [likeCount, commentCount] = await Promise.all([
+          PostLike.countDocuments({ post_id: post._id }),
+          Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
+        ]);
+
+        return {
+          ...post,
+          image: post.image[0],
+          images: post.image,
+          user_name: user?.name || "",
+          user_profileImage: user?.profileImage || "",
+          likeCount,
+          commentCount,
+        };
+      })
+    );
+
+    // 3. SUGGESTED USERS
+    const followingIds = await Follow.find({ my_id: myId }).distinct("follow_id");
     const suggestedUsers = await Customer.find({
-      _id: { $nin: [...followingIds, myId] }
+      _id: { $nin: [...followingIds, myId] },
     })
-      .select('_id name profileImage')
+      .select("_id name profileImage")
       .limit(10)
       .lean();
 
     // 4. RANDOM POSTS
     const randomPosts = await Post.aggregate([
-      { $match: { post_type: 'post' } },
-      { $sample: { size: 10 } }
+      { $match: { post_type: "post" } },
+      { $sample: { size: 10 } },
     ]);
 
     const randomPostsWithUser = await Promise.all(
       randomPosts.map(async (post) => {
-        const user = await Customer.findById(post.customer_id).select('name profileImage').lean();
+        const user = await Customer.findById(post.customer_id)
+          .select("name profileImage")
+          .lean();
+
+        const [likeCount, commentCount] = await Promise.all([
+          PostLike.countDocuments({ post_id: post._id }),
+          Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
+        ]);
+
         return {
           ...post,
-          user_name: user?.name || '',
-          user_profileImage: user?.profileImage || ''
+          user_name: user?.name || "",
+          user_profileImage: user?.profileImage || "",
+          likeCount,
+          commentCount,
         };
       })
     );
 
     // 5. REELS
-    const reels = await Post.find({ type: 'Video', post_type: 'reel' })
+    const reels = await Post.find({ type: "Video", post_type: "reel" })
       .sort({ createdAt: -1 })
       .limit(10)
       .lean();
 
     const reelsWithUser = await Promise.all(
       reels.map(async (reel) => {
-        const user = await Customer.findById(reel.customer_id).select('name profileImage').lean();
+        const user = await Customer.findById(reel.customer_id)
+          .select("name profileImage")
+          .lean();
+
+        const [likeCount, commentCount] = await Promise.all([
+          PostLike.countDocuments({ post_id: reel._id }),
+          Comment.countDocuments({ post_id: reel._id, is_deleted: 0 }),
+        ]);
+
         return {
           ...reel,
-          user_name: user?.name || '',
-          user_profileImage: user?.profileImage || ''
+          user_name: user?.name || "",
+          user_profileImage: user?.profileImage || "",
+          likeCount,
+          commentCount,
         };
       })
     );
 
     // 6. More posts
-    const morePosts = await Post.find({ post_type: { $in: ['post', 'reel'] } })
+    const morePosts = await Post.find({ post_type: { $in: ["post", "reel"] } })
       .sort({ createdAt: -1 })
       .skip(1)
       .limit(10)
@@ -713,18 +761,27 @@ const getHome = async (req, res) => {
 
     const morePostsWithUser = await Promise.all(
       morePosts.map(async (post) => {
-        const user = await Customer.findById(post.customer_id).select('name profileImage').lean();
+        const user = await Customer.findById(post.customer_id)
+          .select("name profileImage")
+          .lean();
+
+        const [likeCount, commentCount] = await Promise.all([
+          PostLike.countDocuments({ post_id: post._id }),
+          Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
+        ]);
+
         return {
           ...post,
-          user_name: user?.name || '',
-          user_profileImage: user?.profileImage || ''
+          user_name: user?.name || "",
+          user_profileImage: user?.profileImage || "",
+          likeCount,
+          commentCount,
         };
       })
     );
 
-    
     // 8. Final batch of 10 posts
-    const finalPosts = await Post.find({ post_type: { $in: ['post', 'reel'] } })
+    const finalPosts = await Post.find({ post_type: { $in: ["post", "reel"] } })
       .sort({ createdAt: -1 })
       .skip(1)
       .limit(10)
@@ -732,11 +789,21 @@ const getHome = async (req, res) => {
 
     const finalPostsWithUser = await Promise.all(
       finalPosts.map(async (post) => {
-        const user = await Customer.findById(post.customer_id).select('name profileImage').lean();
+        const user = await Customer.findById(post.customer_id)
+          .select("name profileImage")
+          .lean();
+
+        const [likeCount, commentCount] = await Promise.all([
+          PostLike.countDocuments({ post_id: post._id }),
+          Comment.countDocuments({ post_id: post._id, is_deleted: 0 }),
+        ]);
+
         return {
           ...post,
-          user_name: user?.name || '',
-          user_profileImage: user?.profileImage || ''
+          user_name: user?.name || "",
+          user_profileImage: user?.profileImage || "",
+          likeCount,
+          commentCount,
         };
       })
     );
@@ -744,20 +811,20 @@ const getHome = async (req, res) => {
     // ✅ Final Response
     res.status(200).json({
       status: true,
-      statusList: filteredStatuses, // profile only
+      statusList: filteredStatuses,
       recentPosts: postsWithUser,
       suggestedUsers,
       randomPosts: randomPostsWithUser,
       reels: reelsWithUser,
       morePosts: morePostsWithUser,
-      finalPosts: finalPostsWithUser
+      finalPosts: finalPostsWithUser,
     });
-
   } catch (error) {
-    console.error('getHome error:', error);
+    console.error("getHome error:", error);
     res.status(500).json({ status: false, message: error.message });
   }
 };
+
 
 
 
