@@ -16,7 +16,7 @@ router.get('/follow_back/:id', followBack);
 router.post('/comment', addCommentOrReply);
 router.get('/comment/:post_id', getCommentsWithReplies);
 router.get('/song', getSongs);
-router.get('/like', postlike)
+router.post('/like', postlike)
 
 router.post('/post', upload.fields([
   { name: 'image', maxCount: 10 }
